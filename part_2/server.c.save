@@ -1,0 +1,111 @@
+#include<sercl.h>
+#include<pthread.h>
+#include<sys/types.h>
+#include<sys/ipc.h>
+#include<sys/msg.h>
+#include<stdio.h>
+#include<malloc.h>
+//#include<unistd.h>
+void func(char *str)
+{
+	int i = 0;
+	while (str[i]!='\0')
+	{
+		str[i]+=1;
+	}
+}
+void *handler()
+{
+	int que_out, que_in;
+	sercl_t buff;
+	key_t key;
+	key = ftok("server.c", 'C');
+	que_out = msgget(key, 0);
+	key = ftok("server.c", 'B');
+	que_in = msgget(key, 0);
+	while(1)
+	{
+		msgrcv(que_in, &buff, sizeof(buff)-sizeof(long), 0, 0);
+		func(buff.str);
+		msgsnd(que_out, &buff, sizeof(buff)-sizeof(long), 0, 0)
+	}
+}
+long log_2(unsigned int alf)
+{
+	long i = 0;
+	while(alf>=2)
+	{
+		alf/=2;
+		i++;
+	}
+	return i;
+}
+long get_user(int **mass)
+{
+	unsigned long tmp = 1;
+	long i = 1;
+	while((tmp&(*mass)[i])!=0)
+	{
+		tmp<<=1;
+		if (tmp == 0x00000000)
+		{
+			i++;
+			tmp = 1;
+			if (i>(*mass)[0])
+			{
+				(*mass)[0]++;
+				(*mass) = realloc((*mass), (i+1)*sizeof(int));
+			}
+		}
+	}
+	(*mass)[i] = (*mass)[i]|tmp;
+	return ((32*(i-1))+log_2(tmp));
+}
+void clear_user(int *mass, int pos)
+{
+	unsigned int tmp = 1;
+	tmp = tmp << (pos%32);
+	tmp = ~tmp;
+	mass[(pos/32)+1] &= tmp;
+}
+int main()
+{
+	key_t key;
+	sercl_t buff;
+	int que_in, que_hand, que_out;
+	int num_cl;
+	int *users = malloc(sizeof(int)*2);
+	users[0] = 1;
+	key = ftok("server.c", 'A');
+	que_in = msgget(key, IPC_CREAT|0666);
+	key = ftok("server.c", 'B');
+	que_hand = msgget(key, IPC_CREAT|0666);
+	key = ftok("server.c", 'C');
+	que_out = msgget(key, IPC_CREAT|0666);
+	pthread_t tid[5];
+	for(int i = 0; i<5; i++)
+	{
+		pthread_create(&tid[i], NULL, handler, NULL);
+	}
+	while(1)
+	{
+		msgrcv(que_in, &buff, sizeof(buff)-sizeof(long), 0, 0);
+		if(buff.mtype == 0)
+		{
+			buff.mtype = get_user(&users);
+			msgsnd(que_out, buff, sizeof(buff) - sizeof(long), 0);
+		}
+		else
+		{
+			if(buff.str[0] == 0)
+			{
+				clear_user(users, buff.mtype);
+			}
+			else
+			{
+				msgsnd(que_hand, buff, sizeof(buff)-sizeof(long), 0);
+			}
+		}
+	}
+	return 0;
+}

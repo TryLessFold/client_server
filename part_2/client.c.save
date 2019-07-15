@@ -1,0 +1,13 @@
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/types.h>
+#include <stdio.h>
+#include <pthread.h>
+#include <sercl.h>
+int main()
+{
+	long num = 0;
+	sercl_t buff;
+	char* str[256];
+	while(str)
+}
